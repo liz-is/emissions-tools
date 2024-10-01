@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+
+import urllib.request
+import urllib.error
+import json
+import sys
+import subprocess
+import argparse
+from datetime import datetime, timedelta
+
+# Base definitions on Scope 3 emissions
+SCOPE3_PER_NODEH = 24.0   # gCO2e/nodeh
+
+# Base definitions on Scope 2 emissions
+MEAN_NODE_POWER_DRAW = 0.41    # kW
+MIN_NODE_POWER_DRAW = 0.2      # kW
+
+# Definitions for querying web API
+LOCATION = "EH26"
+DATEFORMAT_IN = '%Y-%m-%dT%H:%M:%S'
+DATEFORMAT_OUT = '%Y-%m-%dT%H:%MZ'
+TIME_DELTA = timedelta(minutes=30)
+
+# Comparison values
+UK_HOUSE = 7.397  # kWh/day  https://www.ofgem.gov.uk/average-gas-and-electricity-usage
+STEAK = 49.89 # kgCO2e/100g https://www.nationalfoodstrategy.org/the-report/
+TRANSA_FLIGHT = 500.0 # kgCO2e/passanger (one way) https://www.theguardian.com/environment/ng-interactive/2019/jul/19/carbon-calculator-how-taking-one-flight-emits-as-much-as-many-people-do-in-a-year
+DRIVING = 0.269 # kgCO2e/mile https://www.statista.com/statistics/1233409/carbon-footprint-of-cars-by-type-uk/
+
+# All values are for 100 g
+foodDict = {
+        'Beef': 12.47, # kgCO2e/100g https://www.nationalfoodstrategy.org/the-report/ , ~25 g protein per 100 g beef
+        'Chicken': 1.43, # kgCO2e/100g https://www.nationalfoodstrategy.org/the-report/ , ~25 g protein per 100 g chicken
+        'Avocado': 0.18, # kgCO2e/100g https://www.theecoexperts.co.uk/blog/avocados-bad-for-environment
+        'Chickpeas': 0.04 # kgCO2e/100g https://apps.carboncloud.com/climatehub/product-reports/id/87516661589
+        }
+
+
+parser = argparse.ArgumentParser(
+        description='Compute estimated emissions from a Slurm job. Includes Scope 2 and Scope 3 emissions. If the Slurm job contains energy consumption then this is used to compute Scope 2 emissions, if energy data is not present in Slurm, the mean power draw of compute nodes is used to estimate emissions.',
+        epilog='The carbon density for Scope 2 emissions is taken as the value for the location of ARCHER2 at the start of the job from carbonintensity.org.uk. Scope 3 emissions are computed based on the amount of resource used by the job (e.g. ikgCO2e/nodeh) and are calculated as the total Scope 3 emissions from the service divided byt the total number of nodeh available over the projected lifetime of the service.\n'
+        )
+parser.add_argument('jobid', type=str, nargs=1, help='JobID of the Slurm job to compute emissions for.')
+parser.add_argument('--json', dest='jsonOutput', action='store_true', default=False, help='Output in JSON format rather than human-readable text.')
+parser.add_argument('--comparison', type=str, dest='compare', action='store', default='food,other', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "non". "none" supresses reporting of emissions comparisons. Default is "food,other".')
+parser.add_argument('--scope2', dest='doScope2', action='store_true', default=False, help='Turn on Scope 2 emissons estmates for the job.')
+args = parser.parse_args()
+
+jobid = args.jobid[0]
+
+# Get job details
+jobEnergy = 0
+sacct_cmd = subprocess.run(['sacct', '-n', '-X', '--format=Start,NNode,ElapsedRaw,Account%50,ConsumedEnergyRaw', f'--job={jobid}'], stdout=subprocess.PIPE)
+job_details = sacct_cmd.stdout.decode("utf-8").strip()
+tokens = job_details.split()
+jobStartStr = tokens[0]
+jobNodes = int(tokens[1])
+jobRuntime = int(tokens[2])
+jobAccount = tokens[3]
+try:
+   jobEnergy = int(tokens[4])
+except ValueError:
+   jobEnergy = 0
+jobNodeh = (jobNodes * jobRuntime) / 3600.0
+estimatedKWh = 0.0
+
+measuredMeanPowerDraw = jobEnergy / (jobNodes * jobRuntime)
+# If we have a valid energy from Slurm, use it; otherwise, use estimate
+isEstimated = False
+if measuredMeanPowerDraw > MIN_NODE_POWER_DRAW:
+    estimatedKWh = jobEnergy / 3600000
+    isEstimated = False
+else:
+    estimatedKWh = jobNodeh * MEAN_NODE_POWER_DRAW
+    isEstimated = True
+
+# Estimate Scope 2 emissions from job energy use and historic carbon density
+# Get the start time in the right format to query the carbonintensity API
+jobStart = datetime.strptime(jobStartStr, DATEFORMAT_IN)
+jobEnd = jobStart + TIME_DELTA
+jobStartUrl = jobStart.strftime(DATEFORMAT_OUT)
+jobEndUrl = jobEnd.strftime(DATEFORMAT_OUT)
+
+# Query carbonintensity to get the JSON information
+ciUrl = f'https://api.carbonintensity.org.uk/regional/intensity/{jobStartUrl}/{jobEndUrl}/postcode/{LOCATION}'
+ciResponse = None
+try:
+   ciResponse = urllib.request.urlopen(ciUrl)
+except urllib.error.HTTPError as e:
+   print(e)
+   sys.exit(1)
+   
+# Parse the JSON retrieved from the website
+ciJSON = ciResponse.read()
+ciDataStruct = json.loads(ciJSON)
+ciValue = ciDataStruct['data']['data'][0]['intensity']['forecast']
+   
+if args.doScope2:
+   # Scope 2
+   scope2Emissions = (estimatedKWh * ciValue) / 1000.0
+else:
+   # By default, these are zero because we have a 100% renewable energy contract
+   scope2Emissions = 0
+
+# Scope 3
+scope3Emissions = (jobNodeh * SCOPE3_PER_NODEH) / 1000.0
+
+# Total
+totalEmissions = scope2Emissions + scope3Emissions
+scope2Percent = 100.0 * (scope2Emissions / totalEmissions)
+scope3Percent = 100.0 * (scope3Emissions / totalEmissions)
+
+if args.jsonOutput:
+   # construct dictionary for JSON output
+   jobDict = {}
+   jobDict['JobID'] = jobid
+   jobDict['Start'] = jobStartStr
+   jobDict['Budget'] = jobAccount
+   jobDict['Nodes'] = jobNodes
+   jobDict['Runtime'] = jobRuntime
+
+   resDict = {}
+   resDict['ResourceUsed'] = f'{jobNodeh:.3f}'
+   resDict['ResourceUnit'] = 'nodeh'
+   jobDict['Resource'] = resDict
+
+   energyDict = {}
+   energyDict['EnergyUsed'] = f'{estimatedKWh:.3f}'
+   energyDict['EnergyUnits'] = 'kWh'
+   if isEstimated:
+      energyDict['EnergyCalc'] = 'Estimated'
+   else:
+      energyDict['EnergyCalc'] = 'Measured'
+   jobDict['Energy'] = energyDict
+
+   emissionsDict = {}
+   emissionsDict['Scope2Emissions'] = f'{scope2Emissions:.3f}'
+   emissionsDict['Scope2EmissionsUnit'] = 'kgCO2e'
+   emissionsDict['Scope3Emissions'] = f'{scope3Emissions:.3f}'
+   emissionsDict['Scope3EmissionsUnit'] = 'kgCO2e'
+   emissionsDict['TotalEmissions'] = f'{totalEmissions:.3f}'
+   emissionsDict['TotalEmissionsUnit'] = 'kgCO2e'
+   jobDict['Emissions'] = emissionsDict
+   jsonStr = json.dumps(jobDict, indent=4, separators=(',', ': '))
+   print(jsonStr)
+else:
+   # To mark if energy use is estimated
+   markerStr = ''
+   if isEstimated:
+      markerStr = '(*)'
+   print('\n###########################################################################################')
+   print('# ARCHER2 job emissions estimate')
+   print('#')
+   print('# Notes:')
+   print('#  * Estimates provided for interest only')
+   print('#  * Scope 3 emissions estimates based on 6 years service length.')
+   print('#  * Scope 3 emissions estimates include compute nodes, storage, interconnect switches')
+   print('#')
+   print('###########################################################################################')
+   
+   print(f'\n  Job details')
+   print(f'       Job ID: {jobid:>25s}')
+   print(f'        Start: {jobStartStr:>25s}')
+   print(f'       Budget: {jobAccount:>25s}')
+   print(f'        Nodes: {jobNodes:25d}')
+   print(f'      Runtime: {jobRuntime:25d} s')
+   print(f'           CU: {jobNodeh:25.3f}')
+   print(f'   Energy use: {estimatedKWh:25.3f} kWh{markerStr}')
+   
+   if args.doScope2:
+      print(f'\n  Emissions estimates:')
+      print(f'      Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh), {scope2Percent:.2f}% of total')
+      print('             Note: ARCHER2 is on 100% certified renewable energy contract so scope 2')
+      print('                   emissions are zero. We provide this information as we are aware of')
+      print('                   the limitations of 100% certified renewable energy contracts.')
+      print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU), {scope3Percent:.2f}% of total')
+      print(f'        Total: {totalEmissions:10.3f} kgCO2e')
+      if isEstimated:
+         print(f'\n     (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
+   else:
+      print(f'\n  Emissions estimates:')
+      print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
+      print(f'        Total: {totalEmissions:10.3f} kgCO2e')
+      print('\n     Note: ARCHER2 is on 100% certified renewable energy contract so scope 2')
+      print('           emissions are zero. Use the "--scope2" option to estimate scope 2')
+      print('           emissions for the job based on UK National Grid emissions.')
+      if isEstimated:
+         print(f'\n     (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
+
+   if 'food' in args.compare:
+      steaks = 100 * (totalEmissions/STEAK)
+      print(f'\n   Emissions from job approximately equivalent to following food consumption:')
+      print(f"        |{'Food':>10s} |{'Emissions (kgCO2e/100g)':>25s} |{'Job emissions equivalent to (g)':>33s} |")
+      print(f"        |-----------|--------------------------|----------------------------------|")
+      for food in foodDict:
+          equiv = 100 * totalEmissions / foodDict[food]
+          print(f"        |{food:>10s} |{foodDict[food]:25.2f} |{equiv:33.2f} |")
+
+   if 'other' in args.compare:
+      house = (UK_HOUSE * ciValue)/1000.0
+      print(f'\n  Emissions from job approximately equivalent to:')
+      print(f"        Daily emissions from {totalEmissions/house:.1f} houses' electricity use (in S. Scotland)")
+      print(f'        Emissions from flying {totalEmissions/TRANSA_FLIGHT:.3f} times across the Atlantic ({TRANSA_FLIGHT:.2f} kgCO2e/person)')
+      print(f'        Emissions from driving {totalEmissions/DRIVING:.1f} miles ({DRIVING:.2f} kgCO2e/mile, average UK car, petrol and diesel very similar)')
+
+   print()
+
