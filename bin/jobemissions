@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+# Tool to calculate estimated Scope 2 and Scope 3 emissions from
+# a single job on ARCHER2. The grid carbon density is fetched from 
+# the carbonintensity.org.uk website.
+#
+# EPCC, 2024
+
 import urllib.request
 import urllib.error
 import json
@@ -43,7 +49,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('jobid', type=str, nargs=1, help='JobID of the Slurm job to compute emissions for.')
 parser.add_argument('--json', dest='jsonOutput', action='store_true', default=False, help='Output in JSON format rather than human-readable text.')
 parser.add_argument('--comparison', type=str, dest='compare', action='store', default='food,other', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "non". "none" supresses reporting of emissions comparisons. Default is "food,other".')
-parser.add_argument('--scope2', dest='doScope2', action='store_true', default=False, help='Turn on Scope 2 emissons estmates for the job.')
+parser.add_argument('--noscope2', dest='doScope2', action='store_false', default=True, help='Turn off Scope 2 emissons estmates for the job.')
 args = parser.parse_args()
 
 jobid = args.jobid[0]
