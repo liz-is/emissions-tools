@@ -6,7 +6,7 @@ Repository to hold scripts and tools for emissions estimates on ARCHER2, UK nati
 
 | Tool | Documentation | Description |
 |---|---|---|
-| `bin/jobemissions` | TBC | Tool to calculate estimated Scope 2 and Scope 3 emissions for specified job on ARCHER2 |
+| `bin/jobemissions` | [jobemissions wiki page](https://github.com/ARCHER2-HPC/emissions-tools/wiki/jobemissions) | Tool to calculate estimated Scope 2 and Scope 3 emissions for specified job on ARCHER2 |
 
 ## Emission estimates methodologies
 
