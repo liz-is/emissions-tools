@@ -56,7 +56,7 @@ around 85% of the system power draw.
 
 Current Scope 2 emission estimates do not include overheads from the electical and cooling plant.
 
-### References
+### References
 
 1. IRISCAST Final Report: https://doi.org/10.5281/zenodo.7692451
 2. IBM z16™ multi frame 24-port Ethernet Switch Product Carbon Footprint
