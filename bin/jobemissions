@@ -48,7 +48,7 @@ parser = argparse.ArgumentParser(
         )
 parser.add_argument('jobid', type=str, nargs=1, help='JobID of the Slurm job to compute emissions for.')
 parser.add_argument('--json', dest='jsonOutput', action='store_true', default=False, help='Output in JSON format rather than human-readable text.')
-parser.add_argument('--comparison', type=str, dest='compare', action='store', default='food,other', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" supresses reporting of emissions comparisons. Default is "food,other".')
+parser.add_argument('--comparison', type=str, dest='compare', action='store', default='none', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" supresses reporting of emissions comparisons. Default is "none".')
 parser.add_argument('--noscope2', dest='doScope2', action='store_false', default=True, help='Turn off Scope 2 emissons estmates for the job.')
 args = parser.parse_args()
 
