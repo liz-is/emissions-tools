@@ -48,8 +48,7 @@ parser = argparse.ArgumentParser(
         )
 parser.add_argument('jobid', type=str, nargs=1, help='JobID of the Slurm job to compute emissions for.')
 parser.add_argument('--json', dest='jsonOutput', action='store_true', default=False, help='Output in JSON format rather than human-readable text.')
-parser.add_argument('--comparison', type=str, dest='compare', action='store', default='none', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" supresses reporting of emissions comparisons. Default is "none".')
-parser.add_argument('--noscope2', dest='doScope2', action='store_false', default=True, help='Turn off Scope 2 emissons estmates for the job.')
+parser.add_argument('--comparison', type=str, dest='compare', action='store', default='none', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" suppresses reporting of emissions comparisons. Default is "none".')
 args = parser.parse_args()
 
 jobid = args.jobid[0]
@@ -101,18 +100,15 @@ ciJSON = ciResponse.read()
 ciDataStruct = json.loads(ciJSON)
 ciValue = ciDataStruct['data']['data'][0]['intensity']['forecast']
    
-if args.doScope2:
-   # Scope 2
-   scope2Emissions = (estimatedKWh * ciValue) / 1000.0
-else:
-   # By default, these are zero because we have a 100% renewable energy contract
-   scope2Emissions = 0
+# Scope 2
+scope2Emissions = (estimatedKWh * ciValue) / 1000.0
 
 # Scope 3
 scope3Emissions = (jobNodeh * SCOPE3_PER_NODEH) / 1000.0
 
 # Total
-totalEmissions = scope2Emissions + scope3Emissions
+totalEmissions = scope3Emissions
+totalEmissionsUKGrid = scope2Emissions + scope3Emissions
 scope2Percent = 100.0 * (scope2Emissions / totalEmissions)
 scope3Percent = 100.0 * (scope3Emissions / totalEmissions)
 
@@ -140,12 +136,16 @@ if args.jsonOutput:
    jobDict['Energy'] = energyDict
 
    emissionsDict = {}
-   emissionsDict['Scope2Emissions'] = f'{scope2Emissions:.3f}'
+   
+   emissionsDict['Scope2Emissions'] = f'{0.0:.3f}'
+   emissionsDict['Scope2EmissionsUKGrid'] = f'{scope2Emissions:.3f}'
    emissionsDict['Scope2EmissionsUnit'] = 'kgCO2e'
    emissionsDict['Scope3Emissions'] = f'{scope3Emissions:.3f}'
    emissionsDict['Scope3EmissionsUnit'] = 'kgCO2e'
-   emissionsDict['TotalEmissions'] = f'{totalEmissions:.3f}'
+   emissionsDict['TotalEmissions'] = f'{scope3Emissions:.3f}'
    emissionsDict['TotalEmissionsUnit'] = 'kgCO2e'
+   emissionsDict['CarbonIntensityUKGrid'] = f'{ciValue:.3f}'
+   emissionsDict['CarbonIntensityUKGridUnit'] = f'gCO2e/kWh'
    jobDict['Emissions'] = emissionsDict
    jsonStr = json.dumps(jobDict, indent=4, separators=(',', ': '))
    print(jsonStr)
@@ -173,25 +173,16 @@ else:
    print(f'           CU: {jobNodeh:25.3f}')
    print(f'   Energy use: {estimatedKWh:25.3f} kWh{markerStr}')
    
-   if args.doScope2:
-      print(f'\n  Emissions estimates:')
-      print(f'      Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh), {scope2Percent:.2f}% of total')
-      print('             Note: ARCHER2 is on 100% certified renewable energy contract so scope 2')
-      print('                   emissions are zero. We provide this information as we are aware of')
-      print('                   the limitations of 100% certified renewable energy contracts.')
-      print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU), {scope3Percent:.2f}% of total')
-      print(f'        Total: {totalEmissions:10.3f} kgCO2e')
-      if isEstimated:
-         print(f'\n     (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
-   else:
-      print(f'\n  Emissions estimates:')
-      print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
-      print(f'        Total: {totalEmissions:10.3f} kgCO2e')
-      print('\n     Note: ARCHER2 is on 100% certified renewable energy contract so scope 2')
-      print('           emissions are zero. Use the "--scope2" option to estimate scope 2')
-      print('           emissions for the job based on UK National Grid emissions.')
-      if isEstimated:
-         print(f'\n     (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
+   print(f'\n  Emissions estimates:')
+   print(f'      Scope 2: 0.0 kgCO2e (ARCHER2 is on 100% certified renewable energy contract so scope emissions are zero).')
+   print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
+   print(f'        Total: {totalEmissions:10.3f} kgCO2e\n')
+   print(f'      Emissions estimates for UK national grid energy mix in S. Scotland at start of job')
+   print(f'          Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh{scope2Percent:.2f}% of total)')
+   print(f'          Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU, {scope3Percent:.2f}% of total)')
+   print(f'            Total: {totalEmissionsUKGrid:10.3f} kgCO2e')
+   if isEstimated:
+      print(f'\n       (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
 
    if 'food' in args.compare:
       steaks = 100 * (totalEmissions/STEAK)
