@@ -13,7 +13,10 @@ Repository to hold scripts and tools for emissions estimates on ARCHER2, UK nati
 ### Scope 3 emissions
 
 Scope 3 emssions from the ARCHER2 hardware have been estimated from a subset of the components that are expected to 
-make up the majority of the emissions.
+make up the majority of the emissions. Note that there is a large amount of uncertainty for Scope 3 emissions due
+to lack of high quality Scope 3 emissions data from vendors. In particular, the number used for the compute node
+emissions is at the high end of estimated values and the actual value could be as much as 15% lower at around 
+900 kgCO2e/node.
 
 | Component | Count | Estimated kgCO_2_e per unit | Estimated kgCO_2_e | % Total Scope 3 | References |
 |---|--:|--:|--:|--:|---|
@@ -34,7 +37,11 @@ Tools use a value of 0.023 kgCO_2_e/CU for ARCHER2.
 
 ### Scope 2 emissions
 
-Scope 2 emissions are typically calculated using the compute node energy use for particular jobs along with
+Scope 2 emissions from ARCHER2 are zero as the service is supplied by 100% certified renewable energy.
+For information purposes we can calculate what the Scope 2 emissions would have been if the energy
+was not 100% renewable energy using the methodology described below.
+
+UK national grid based Scope 2 emissions are typically calculated using the compute node energy use for particular jobs along with
 the carbon intensity of the South Scotland region of the UK National Grid at the start time of the job. The
 carbon intensity is retrieved from the [carbonintensity.org.uk](carbonintensity.org.uk) web API.
 
@@ -54,7 +61,7 @@ around 85% of the system power draw.
 | Coolant distribution units | 6 CDU | 16 | 96 | 3% | Estimate from vendor |
 | Total | | | 2,808 | 99% | |
 
-Current Scope 2 emission estimates do not include overheads from the electical and cooling plant.
+Current Scope 2 grid based emission calculations estimates do not include overheads from the electical and cooling plant.
 
 ### References
 
