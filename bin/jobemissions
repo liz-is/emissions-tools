@@ -14,8 +14,18 @@ import subprocess
 import argparse
 from datetime import datetime, timedelta
 
+def round_to_nearest_half_hour(t):
+    delta = timedelta(minutes=(30 - t.minute % 30) % 30)
+    if t.minute > 30:
+        t += delta
+    else:
+        t -= delta
+    return t.replace(second=0, microsecond=0)
+
+CI_DATA_DIR = "/work/z19/shared/carbonintensity"
+
 # Base definitions on Scope 3 emissions
-SCOPE3_PER_NODEH = 24.0   # gCO2e/nodeh
+SCOPE3_PER_NODEH = 23.0   # gCO2e/nodeh
 
 # Base definitions on Scope 2 emissions
 MEAN_NODE_POWER_DRAW = 0.41    # kW
@@ -49,6 +59,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('jobid', type=str, nargs=1, help='JobID of the Slurm job to compute emissions for.')
 parser.add_argument('--json', dest='jsonOutput', action='store_true', default=False, help='Output in JSON format rather than human-readable text.')
 parser.add_argument('--comparison', type=str, dest='compare', action='store', default='none', help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" suppresses reporting of emissions comparisons. Default is "none".')
+parser.add_argument('--cisource', type=str, dest='cisource', action='store', default='cache', help='Specify how to source the carbon intensity value for indicative Scope 2 emissions. "cache" gets values from cache on ARCHER2 to avoid flooding carbonintensity.org.uk with requests and allow use on compute nodes. "ciwebsite" fetches values direct from carbonintensity.org.uk website. Default is "cache".')
 args = parser.parse_args()
 
 jobid = args.jobid[0]
@@ -79,27 +90,56 @@ else:
     estimatedKWh = jobNodeh * MEAN_NODE_POWER_DRAW
     isEstimated = True
 
-# Estimate Scope 2 emissions from job energy use and historic carbon density
-# Get the start time in the right format to query the carbonintensity API
-jobStart = datetime.strptime(jobStartStr, DATEFORMAT_IN)
-jobEnd = jobStart + TIME_DELTA
-jobStartUrl = jobStart.strftime(DATEFORMAT_OUT)
-jobEndUrl = jobEnd.strftime(DATEFORMAT_OUT)
+ciValue = 0.0
+if args.cisource == "ciwebsite":
+   # Estimate Scope 2 emissions from job energy use and historic carbon density
+   # Get the start time in the right format to query the carbonintensity API
+   jobStart = datetime.strptime(jobStartStr, DATEFORMAT_IN)
+   jobEnd = jobStart + TIME_DELTA
+   jobStartUrl = jobStart.strftime(DATEFORMAT_OUT)
+   jobEndUrl = jobEnd.strftime(DATEFORMAT_OUT)
+   
+   # Query carbonintensity to get the JSON information
+   ciUrl = f'https://api.carbonintensity.org.uk/regional/intensity/{jobStartUrl}/{jobEndUrl}/postcode/{LOCATION}'
+   ciResponse = None
+   try:
+      ciResponse = urllib.request.urlopen(ciUrl)
+   except urllib.error.HTTPError as e:
+      print(e)
+      sys.exit(1)
+   
+   # Parse the JSON retrieved from the website
+   ciJSON = ciResponse.read()
+   ciDataStruct = json.loads(ciJSON)
+   ciValue = ciDataStruct['data']['data'][0]['intensity']['forecast']
+else:
+   # Extract CI value at the job start time
+   #   The CI value is taken from cached values held on ARCHER2 to avoid 
+   #   flooding the carbonintensity.org.uk website with requests. The cached
+   #   values are captured every night in a file per day with half-hour 
+   #   interval data in a CSV file. 
+   jobStart = datetime.strptime(jobStartStr, DATEFORMAT_IN)
+   
+   sYear = jobStart.year
+   sMonth = jobStart.month
+   sDay = jobStart.day
+   
+   ciCSV = f'{CI_DATA_DIR}/{sYear}/{sMonth}/{sYear}{sMonth}{sDay}_ci.csv'
+   try: 
+      csvFile = open(ciCSV, 'r')
+      # Round to nearest half hour to match interval for data in log files
+      roundedTime = round_to_nearest_half_hour(jobStart)
+      # Convert rounded time to the format in the log files so we can 
+      #   search for it
+      jobStartLog = roundedTime.strftime(DATEFORMAT_OUT)
+      for line in csvFile:
+          if jobStartLog in line:
+              tokens = line.split(",")
+              ciValue = float(tokens[1])
+   except Exception as err:
+       print(str(err))
+       sys.exit(1)
 
-# Query carbonintensity to get the JSON information
-ciUrl = f'https://api.carbonintensity.org.uk/regional/intensity/{jobStartUrl}/{jobEndUrl}/postcode/{LOCATION}'
-ciResponse = None
-try:
-   ciResponse = urllib.request.urlopen(ciUrl)
-except urllib.error.HTTPError as e:
-   print(e)
-   sys.exit(1)
-   
-# Parse the JSON retrieved from the website
-ciJSON = ciResponse.read()
-ciDataStruct = json.loads(ciJSON)
-ciValue = ciDataStruct['data']['data'][0]['intensity']['forecast']
-   
 # Scope 2
 scope2Emissions = (estimatedKWh * ciValue) / 1000.0
 
@@ -154,15 +194,16 @@ else:
    markerStr = ''
    if isEstimated:
       markerStr = '(*)'
-   print('\n###########################################################################################')
+   print('\n#####################################################################')
    print('# ARCHER2 job emissions estimate')
    print('#')
    print('# Notes:')
    print('#  * Estimates provided for interest only')
    print('#  * Scope 3 emissions estimates based on 6 years service length.')
-   print('#  * Scope 3 emissions estimates include compute nodes, storage, interconnect switches')
+   print('#  * Scope 3 emissions estimates include compute nodes, storage,')
+   print('#    interconnect switches')
    print('#')
-   print('###########################################################################################')
+   print('######################################################################')
    
    print(f'\n  Job details')
    print(f'       Job ID: {jobid:>25s}')
@@ -174,24 +215,29 @@ else:
    print(f'   Energy use: {estimatedKWh:25.3f} kWh{markerStr}')
    
    print(f'\n  Emissions estimates:')
-   print(f'      Scope 2: 0.0 kgCO2e (ARCHER2 is on 100% certified renewable energy contract so scope emissions are zero).')
+   print(f'      Scope 2: {0.0:10.3f} kgCO2e (ARCHER2 is on 100% certified')
+   print(f'               renewable energy contract so scope emissions are zero)')
    print(f'      Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
    print(f'        Total: {totalEmissions:10.3f} kgCO2e\n')
-   print(f'      Emissions estimates for UK national grid energy mix in S. Scotland at start of job')
-   print(f'          Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh{scope2Percent:.2f}% of total)')
-   print(f'          Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU, {scope3Percent:.2f}% of total)')
+   print(f'      Indicative emissions estimates for UK national grid energy mix')
+   print(f'      in S. Scotland at start of job if ARCHER2 was not using')
+   print(f'      renewable energy')
+   print(f'          Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh)')
+   print(f'          Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
    print(f'            Total: {totalEmissionsUKGrid:10.3f} kgCO2e')
+   print(f'\n      Scope 2 carbon intesnity values from carbonintensity.org.uk')
    if isEstimated:
-      print(f'\n       (*) Energy use missing from Slurm data, estimated using mean powe draw of compute node')
+      print(f'\n       (*) Energy use missing from Slurm data, estimated using mean')
+      print(f'             power draw of compute node')
 
    if 'food' in args.compare:
       steaks = 100 * (totalEmissions/STEAK)
       print(f'\n   Emissions from job approximately equivalent to following food consumption:')
-      print(f"        |{'Food':>10s} |{'Emissions (kgCO2e/100g)':>25s} |{'Job emissions equivalent to (g)':>33s} |")
-      print(f"        |-----------|--------------------------|----------------------------------|")
+      print(f"        |{'Food':>10s} |{'Emissions (kgCO2e/100g)':>25s} |{'Equivalent to (g)':>18s} |")
+      print(f"        |-----------|--------------------------|-------------------|")
       for food in foodDict:
           equiv = 100 * totalEmissions / foodDict[food]
-          print(f"        |{food:>10s} |{foodDict[food]:25.2f} |{equiv:33.2f} |")
+          print(f"        |{food:>10s} |{foodDict[food]:25.2f} |{equiv:18.2f} |")
 
    if 'other' in args.compare:
       house = (UK_HOUSE * ciValue)/1000.0
