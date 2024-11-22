@@ -225,7 +225,7 @@ else:
    print(f'          Scope 2: {scope2Emissions:10.3f} kgCO2e ({estimatedKWh:.3f} kWh{markerStr}, {ciValue:.1f} gCO2e/kWh)')
    print(f'          Scope 3: {scope3Emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)')
    print(f'            Total: {totalEmissionsUKGrid:10.3f} kgCO2e')
-   print(f'\n      Scope 2 carbon intesnity values from carbonintensity.org.uk')
+   print(f'\n      Scope 2 carbon intensity values from carbonintensity.org.uk')
    if isEstimated:
       print(f'\n       (*) Energy use missing from Slurm data, estimated using mean')
       print(f'             power draw of compute node')
