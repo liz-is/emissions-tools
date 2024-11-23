@@ -33,6 +33,8 @@ SCOPE3_PER_NODEH = 23.0   # gCO2e/nodeh
 # Base definitions on Scope 2 emissions
 MEAN_NODE_POWER_DRAW = 0.41    # kW
 MIN_NODE_POWER_DRAW = 0.2      # kW
+OTHER_FRACTION = 0.15          # Fraction to add for non-compute node energy use
+OVERHEAD_FRACTION = 0.10       # Fraction to add for plant overheads
 
 # Definitions for querying web API
 LOCATION = "EH26"
@@ -81,17 +83,22 @@ try:
 except ValueError:
    job_energy = 0
 job_nodeh = (job_nodes * job_runtime) / 3600.0
-estimated_kwh = 0.0
+compute_kwh = 0.0
 
 measured_mean_power_draw = job_energy / (job_nodes * job_runtime)
 # If we have a valid energy from Slurm, use it; otherwise, use estimate
 is_estimated = False
 if measured_mean_power_draw > MIN_NODE_POWER_DRAW:
-    estimated_kwh = job_energy / 3600000
+    compute_kwh = job_energy / 3600000
     is_estimated = False
 else:
-    estimated_kwh = job_nodeh * MEAN_NODE_POWER_DRAW
+    compute_kwh = job_nodeh * MEAN_NODE_POWER_DRAW
     is_estimated = True
+
+# Compute other contributions to energy use
+other_kwh = compute_kwh * OTHER_FRACTION
+overhead_kwh = (compute_kwh + other_kwh) * OVERHEAD_FRACTION
+estimated_kwh = compute_kwh + other_kwh + overhead_kwh
 
 ci_value = 0.0
 if args.cisource == "ciwebsite":
@@ -170,7 +177,10 @@ if args.jsonOutput:
    job_d["Resource"] = res_d
 
    energy_d = {}
-   energy_d["EnergyUsed"] = f"{estimated_kwh:.3f}"
+   energy_d["ComputeEnergyUsed"] = f"{compute_kwh:.3f}"
+   energy_d["OtherEnergyUsed"] = f"{other_kwh:.3f}"
+   energy_d["OverheadEnergyUsed"] = f"{overhead_kwh:.3f}"
+   energy_d["TotalEnergyUsed"] = f"{estimated_kwh:.3f}"
    energy_d["EnergyUnits"] = "kWh"
    if is_estimated:
       energy_d["EnergyCalc"] = "Estimated"
@@ -208,17 +218,20 @@ else:
    print("######################################################################")
 
    print("\n  Job details")
-   print(f"       Job ID: {jobid:>25s}")
-   print(f"        Start: {job_start_s:>25s}")
-   print(f"       Budget: {job_account:>25s}")
-   print(f"        Nodes: {job_nodes:25d}")
-   print(f"      Runtime: {job_runtime:25d} s")
-   print(f"           CU: {job_nodeh:25.3f}")
-   print(f"   Energy use: {estimated_kwh:25.3f} kWh{marker_s}")
+   print(f"                       Job ID: {jobid:>25s}")
+   print(f"                        Start: {job_start_s:>25s}")
+   print(f"                       Budget: {job_account:>25s}")
+   print(f"                        Nodes: {job_nodes:25d}")
+   print(f"                      Runtime: {job_runtime:25d} s")
+   print(f"                           CU: {job_nodeh:25.3f}")
+   print(f"      Compute node energy use: {compute_kwh:25.3f} kWh{marker_s}")
+   print(f"    Other hardware energy use: {other_kwh:25.3f} kWh (estimated)")
+   print(f"          Overhead energy use: {overhead_kwh:25.3f} kWh (estimated)")
+   print(f"             Total energy use: {estimated_kwh:25.3f} kWh (estimated)")
 
    print("\n  Emissions estimates:")
    print(f"      Scope 2: {0.0:10.3f} kgCO2e (ARCHER2 is on 100% certified")
-   print("               renewable energy contract so scope emissions are zero)")
+   print("                renewable energy contract so scope emissions are zero)")
    print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
    print(f"        Total: {total_emissions:10.3f} kgCO2e\n")
    print("      Indicative emissions estimates for UK national grid energy mix")
