@@ -217,7 +217,7 @@ else:
    print("#")
    print("######################################################################")
 
-   print("\n  Job details")
+   print("\n  Job details:")
    print(f"                       Job ID: {jobid:>20s}")
    print(f"                        Start: {job_start_s:>20s}")
    print(f"                       Budget: {job_account:>20s}")
