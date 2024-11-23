@@ -1,0 +1,14 @@
+line-length = 88
+
+[lint]
+select = ["ALL"]
+ignore = [
+   "T201",
+   "S603",
+   "DTZ007"
+]
+
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = 72
