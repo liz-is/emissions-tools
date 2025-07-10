@@ -13,6 +13,7 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
+import pandas as pd
 
 
 def round_to_nearest_half_hour(t: datetime) -> datetime:
@@ -26,6 +27,28 @@ def round_to_nearest_half_hour(t: datetime) -> datetime:
    return t.replace(second=0, microsecond=0)
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
+SCOPE2_AND_3_EMISSIONS_DIR = "/Users/nattybatty/HPC_Emissions_project/emissions-tools/scripts/cleaned_nodes_final_with_avg_and_energy.csv"
+
+import pandas as pd
+
+# Define the estimated average carbon value
+ESTIMATE_VALUE = 10343.0727848101
+
+df = pd.read_csv(SCOPE2_AND_3_EMISSIONS_DIR)
+
+node_carbon = {
+    row["node_name"]: {
+        "cpu_cores": row["cpu_cores"],
+        "embodied": row["embodied_carbon_kgco2e"],
+        "embodied_estimate": round(row["embodied_carbon_kgco2e"], 6) == round(ESTIMATE_VALUE, 6),
+        "max_power_draw": row["energy_100pct_kw"],
+        "min_power_draw": row["energy_0pct_kw"],
+        "model_id": row["model_manufacturer_id"]
+    }
+    for _, row in df.iterrows()
+}
+
+
 
 # Base definitions on Scope 3 emissions
 SCOPE3_PER_NODEH = 23.0   # gCO2e/nodeh
@@ -71,19 +94,40 @@ jobid = args.jobid[0]
 
 # Get job details
 job_energy = 0
-sacct_cmd = subprocess.run(["sacct", "-n", "-X", "--format=Start,NNode,ElapsedRaw,Account%50,ConsumedEnergyRaw", f"--job={jobid}"], stdout=subprocess.PIPE, check=False)
-job_details = sacct_cmd.stdout.decode("utf-8").strip()
+sacct_cmd = subprocess.run(["sacct", "-n", "-X", "--format=Start,NNode,ElapsedRaw,NodeList,AllocCPUS,ConsumedEnergyRaw", f"--job={jobid}"], stdout=subprocess.PIPE, check=False)
+job_details = sacct_cmd.stdout.decode("utf-8").strip()  #makes slurm output readable
 tokens = job_details.split()
-job_start_s = tokens[0]
-job_nodes = int(tokens[1])
-job_runtime = int(tokens[2])
-job_account = tokens[3]
+job_start_s = tokens[0]         
+job_nodes = int(tokens[1])      
+job_runtime = int(tokens[2])    
+job_node_name = tokens[3]       
+job_cpu_cores = int(tokens[4])
 try:
    job_energy = int(tokens[4])
 except ValueError:
    job_energy = 0
 job_nodeh = (job_nodes * job_runtime) / 3600.0
 compute_kwh = 0.0
+
+# Parse node name
+job_node_list = tokens[3]  # This is the NodeList from Slurm
+first_node_name = job_node_list.split(",")[0].strip()
+
+# Lookup in dictionary
+node_info = node_carbon.get(first_node_name)
+
+if not node_info:
+    print(f"Error: node '{first_node_name}' not found in carbon dictionary.")
+    sys.exit(1)
+
+node_cpu_cores = node_info["cpu_cores"]
+node_embodied = node_info["embodied"]
+
+#can move somewhere
+
+print(f"Node name: {first_node_name}")
+print(f"Embodied carbon for this node: {node_embodied} kgCO2e")
+
 
 measured_mean_power_draw = job_energy / (job_nodes * job_runtime)
 # If we have a valid energy from Slurm, use it; otherwise, use estimate
