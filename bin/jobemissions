@@ -96,6 +96,18 @@ jobid = args.jobid[0]
 job_energy = 0
 sacct_cmd = subprocess.run(["sacct", "-n", "-X", "--format=Start,NNode,ElapsedRaw,NodeList,AllocCPUS,ConsumedEnergyRaw", f"--job={jobid}"], stdout=subprocess.PIPE, check=False)
 job_details = sacct_cmd.stdout.decode("utf-8").strip()  #makes slurm output readable
+
+if sacct_cmd.returncode != 0: 
+    print(f"Error: 'sacct' command failed for job ID {jobid}")
+    sys.exit(1)
+if not job_details:
+    print(f"Error: No data returned for job ID {jobid}")
+    sys.exit(1)
+tokens = job_details.split()
+if len(tokens) < 6:
+    print(f"Error: Incomplete data returned for job ID {jobid}")
+    sys.exit(1)
+    
 tokens = job_details.split()
 job_start_s = tokens[0]         
 job_nodes = int(tokens[1])      
@@ -103,7 +115,7 @@ job_runtime = int(tokens[2])
 job_node_name = tokens[3]       
 job_cpu_cores = int(tokens[4])
 try:
-   job_energy = int(tokens[4])
+   job_energy = int(tokens[5])
 except ValueError:
    job_energy = 0
 job_nodeh = (job_nodes * job_runtime) / 3600.0
