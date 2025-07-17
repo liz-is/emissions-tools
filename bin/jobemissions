@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calculate estimated emissions from a single job on ARCHER2.
+"""Calculate estimated emissions from a single job on CREATE HPC.
 
 The grid carbon density is fetched from the carbonintensity.org.uk website.
 
@@ -27,7 +27,7 @@ def round_to_nearest_half_hour(t: datetime) -> datetime:
    return t.replace(second=0, microsecond=0)
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
-SCOPE2_AND_3_EMISSIONS_DIR = "/Users/nattybatty/HPC_Emissions_project/emissions-tools/scripts/cleaned_nodes_final_with_avg_and_energy.csv"
+SCOPE2_AND_3_EMISSIONS_DIR = "/Users/nattybatty/HPC_Emissions_project/emissions-tools/scripts/cleaned_nodes_filled_embodied.csv"
 
 import pandas as pd
 
@@ -60,7 +60,7 @@ OTHER_FRACTION = 0.15          # Fraction to add for non-compute node energy use
 OVERHEAD_FRACTION = 0.10       # Fraction to add for plant overheads
 
 # Definitions for querying web API
-LOCATION = "EH26"
+LOCATION = "EC1A"
 DATEFORMAT_IN = "%Y-%m-%dT%H:%M:%S"
 DATEFORMAT_OUT = "%Y-%m-%dT%H:%MZ"
 TIME_DELTA = timedelta(minutes=30)
@@ -82,12 +82,12 @@ food_d = {
 
 parser = argparse.ArgumentParser(
         description="Compute estimated emissions from a Slurm job. Includes Scope 2 and Scope 3 emissions. If the Slurm job contains energy consumption then this is used to compute Scope 2 emissions, if energy data is not present in Slurm, the mean power draw of compute nodes is used to estimate emissions.",
-        epilog="The carbon density for Scope 2 emissions is taken as the value for the location of ARCHER2 at the start of the job from carbonintensity.org.uk. Scope 3 emissions are computed based on the amount of resource used by the job (e.g. kgCO2e/nodeh) and are calculated as the total Scope 3 emissions from the service divided byt the total number of nodeh available over the projected lifetime of the service.\n",
+        epilog="The carbon density for Scope 2 emissions is taken as the value for the location of CREATE HPC at the start of the job from carbonintensity.org.uk. Scope 3 emissions are computed based on the amount of resource used by the job (e.g. kgCO2e/nodeh) and are calculated as the total Scope 3 emissions from the service divided byt the total number of nodeh available over the projected lifetime of the service.\n",
         )
 parser.add_argument("jobid", type=str, nargs=1, help="JobID of the Slurm job to compute emissions for.")
 parser.add_argument("--json", dest="jsonOutput", action="store_true", default=False, help="Output in JSON format rather than human-readable text.")
 parser.add_argument("--comparison", type=str, dest="compare", action="store", default="none", help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" suppresses reporting of emissions comparisons. Default is "none".')
-parser.add_argument("--cisource", type=str, dest="cisource", action="store", default="cache", help='Specify how to source the carbon intensity value for indicative Scope 2 emissions. "cache" gets values from cache on ARCHER2 to avoid flooding carbonintensity.org.uk with requests and allow use on compute nodes. "ciwebsite" fetches values direct from carbonintensity.org.uk website. Default is "cache".')
+parser.add_argument("--cisource", type=str, dest="cisource", action="store", default="cache", help='Specify how to source the carbon intensity value for indicative Scope 2 emissions. "cache" gets values from cache on CREATE HPC to avoid flooding carbonintensity.org.uk with requests and allow use on compute nodes. "ciwebsite" fetches values direct from carbonintensity.org.uk website. Default is "cache".')
 args = parser.parse_args()
 
 jobid = args.jobid[0]
@@ -180,7 +180,7 @@ if args.cisource == "ciwebsite":
    ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
 else:
    # Extract CI value at the job start time
-   #   The CI value is taken from cached values held on ARCHER2 to avoid
+   #   The CI value is taken from cached values held on CREATE HPC to avoid
    #   flooding the carbonintensity.org.uk website with requests. The cached
    #   values are captured every night in a file per day with half-hour
    #   interval data in a CSV file.
@@ -222,8 +222,7 @@ if args.jsonOutput:
    # construct dictionary for JSON output
    job_d = {}
    job_d["JobID"] = jobid
-   job_d["Start"] = job_start_s
-   job_d["Budget"] = job_account
+   job_d["Start"] = job_start 
    job_d["Nodes"] = job_nodes
    job_d["Runtime"] = job_runtime
 
@@ -263,7 +262,7 @@ else:
    if is_estimated:
       marker_s = "(*)"
    print("\n#####################################################################")
-   print("# ARCHER2 job emissions estimate")
+   print("# CREATE HPC job emissions estimate")
    print("#")
    print("# Notes:")
    print("#  * Estimates provided for interest only")
@@ -276,7 +275,6 @@ else:
    print("\n  Job details:")
    print(f"                       Job ID: {jobid:>20s}")
    print(f"                        Start: {job_start_s:>20s}")
-   print(f"                       Budget: {job_account:>20s}")
    print(f"                        Nodes: {job_nodes:20d}")
    print(f"                      Runtime: {job_runtime:20d} s")
    print(f"                           CU: {job_nodeh:20.3f}")
@@ -286,12 +284,12 @@ else:
    print(f"             Total energy use: {estimated_kwh:20.3f} kWh (estimated)")
 
    print("\n  Emissions estimates:")
-   print(f"      Scope 2: {0.0:10.3f} kgCO2e (ARCHER2 is on 100% certified")
+   print(f"      Scope 2: {0.0:10.3f} kgCO2e (CREATE HPC is on 100% certified")
    print("                renewable energy contract so scope 2 emissions are zero)")
    print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
    print(f"        Total: {total_emissions:10.3f} kgCO2e\n")
    print("      Indicative emissions estimates for UK national grid energy mix")
-   print("      in S. Scotland at start of job if ARCHER2 was not using")
+   print("      in S. Scotland at start of job if CREATE HPC was not using")
    print("      renewable energy")
    print(f"          Scope 2: {scope2_emissions:10.3f} kgCO2e ({estimated_kwh:.3f} kWh{marker_s}, {ci_value:.1f} gCO2e/kWh)")
    print(f"          Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
