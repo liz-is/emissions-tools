@@ -21,3 +21,4 @@ def test_sacct_tokens(jobid):
 
 #Replace this with a real job ID
 test_sacct_tokens("26985829")
+#This test will only work if run on HPC
