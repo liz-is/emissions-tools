@@ -1,0 +1,3 @@
+node_name,cpu_cores,embodied_carbon_kgco2e,energy_100pct_kw,energy_0pct_kw,model_manufacturer_id
+node001,64,10343.0727848101,2.5,0.5,modelA
+node002,128,8000.0000000000,3.0,0.6,modelB
