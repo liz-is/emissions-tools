@@ -1,5 +1,3 @@
-#slurm_utils.py
-
 import subprocess
 
 def get_sacct_tokens(jobid):
@@ -19,6 +17,4 @@ def get_sacct_tokens(jobid):
             return tokens
 
     raise ValueError(f"No step with energy data found for job ID {jobid}")
-
-
 
