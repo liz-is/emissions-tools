@@ -83,7 +83,6 @@ jobid = args.jobid[0]
 try:
     tokens = get_sacct_tokens(jobid)
     print("Tokens:", tokens)
-    sys.exit(0)
 except (RuntimeError, ValueError) as e:
     print(f"Error: {e}")
     sys.exit(1)
@@ -91,7 +90,7 @@ except (RuntimeError, ValueError) as e:
 job_start_s = tokens[2]         
 job_nodes = int(tokens[3])      
 job_runtime = int(tokens[4])    
-job_node_name = tokens[5]       
+job_node_list = tokens[5]       
 job_cpu_cores = int(tokens[6])
 try:
     job_energy = int(tokens[7])
@@ -102,7 +101,7 @@ job_nodeh = (job_nodes * job_runtime) / 3600.0
 compute_kwh = 0.0
 
 # Parse node name
-job_node_list = tokens[3]  # This is the NodeList from Slurm
+job_node_list = tokens[5]  # This is the NodeList from Slurm
 first_node_name = job_node_list.split(",")[0].strip()
 
 # Lookup in dictionary
@@ -170,7 +169,7 @@ else:
    s_month = job_start.month
    s_day = job_start.day
 
-   ci_csv = f"{CI_DATA_DIR}/{s_year}/{s_month}/{s_year}{s_month}{s_day}_ci.csv"
+   ci_csv = f"{CI_DATA_DIR}/{s_year}/{s_month:02d}/{s_year}{s_month:02d}{s_day:02d}_ci.csv"
    try:
       csv_file = open(ci_csv)
       # Round to nearest half hour to match interval for data in log files
@@ -284,8 +283,8 @@ else:
       print("\n   Emissions from job approximately equivalent to following food consumption:")
       print(f"        |{'Food':>10s} |{'Emissions (kgCO2e/100g)':>25s} |{'Equivalent to (g)':>18s} |")
       print("        |-----------|--------------------------|-------------------|")
-      for food in food_d.items():
-          equiv = 100 * total_emissions / food_d[food]
+      for food, emission in food_d.items():
+          equiv = 100 * total_emissions / emission
           print(f"        |{food:>10s} |{food_d[food]:25.2f} |{equiv:18.2f} |")
 
    if "other" in args.compare:
