@@ -1,23 +1,24 @@
-# slurm_utils.py
+#slurm_utils.py
+
 import subprocess
 
 def get_sacct_tokens(jobid):
-    sacct_cmd = subprocess.run([
-        "sacct", "-n", "-X",
-        "--format=Start,NNode,ElapsedRaw,NodeList,AllocCPUS,ConsumedEnergyRaw",
-        f"--job={jobid}"
-    ], stdout=subprocess.PIPE, check=False)
+    """Fetch sacct data and return tokens for the step with energy data."""
+    result = subprocess.run([
+        "sacct", "-j", jobid,
+        "--parsable2",
+        "--format=JobID,JobName,Start,NNodes,ElapsedRaw,NodeList,AllocCPUS,ConsumedEnergyRaw"
+    ], stdout=subprocess.PIPE, check=True)
 
-    job_details = sacct_cmd.stdout.decode("utf-8").strip()
+    lines = result.stdout.decode("utf-8").strip().split("\n")
 
-    if sacct_cmd.returncode != 0:
-        raise RuntimeError(f"'sacct' command failed for job ID {jobid}")
-    if not job_details:
-        raise ValueError(f"No data returned for job ID {jobid}")
+    # Skip header
+    for line in lines[1:]:
+        tokens = line.strip().split("|")
+        if len(tokens) == 8 and tokens[0].endswith(".batch") and tokens[-1].isdigit():
+            return tokens
 
-    tokens = job_details.split()
-    if len(tokens) < 6:
-        raise ValueError(f"Incomplete data returned for job ID {jobid}")
-    
-    return tokens
+    raise ValueError(f"No step with energy data found for job ID {jobid}")
+
+
 
