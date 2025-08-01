@@ -14,8 +14,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 import pandas as pd
-from dict_function import read_node_data
-from slurm_utils import get_sacct_tokens 
+from utils import read_node_data
+from utils import get_sacct_tokens 
 
 def round_to_nearest_half_hour(t: datetime) -> datetime:
    """Round datetime object to nearest half-hour."""
