@@ -101,7 +101,7 @@ if not node_info:
 node_cpu_cores = node_info["cpu_cores"]
 node_embodied = node_info["embodied"]
 scope3_per_coreh = node_embodied / node_cpu_cores / (24 * 365 * NODE_LIFETIME)
-scope3_per_coreh = scope3_per_coreh / 1000 # convert to gCO2e
+scope3_per_coreh = scope3_per_coreh * 1000 # convert to gCO2e
 
 #can move somewhere
 
