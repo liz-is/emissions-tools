@@ -1,5 +1,6 @@
 import pandas as pd
 import subprocess
+from datetime import datetime, timedelta
 
 ESTIMATE_VALUE = 10343.0727848101
 
@@ -38,3 +39,13 @@ def get_sacct_tokens(jobid):
 
     raise ValueError(f"No step with energy data found for job ID {jobid}")
 
+
+def round_to_nearest_half_hour(t: datetime) -> datetime:
+   """Round datetime object to nearest half-hour."""
+   nearest_minute = 30
+   delta = timedelta(minutes=(nearest_minute - t.minute % nearest_minute) % nearest_minute)
+   if t.minute > nearest_minute:
+      t += delta
+   else:
+      t -= delta
+   return t.replace(second=0, microsecond=0)
