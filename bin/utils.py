@@ -29,7 +29,14 @@ def get_sacct_tokens(jobid):
         "--format=JobID,JobName,Start,NNodes,ElapsedRaw,NodeList,AllocCPUS,ConsumedEnergyRaw"
     ], stdout=subprocess.PIPE, check=True)
 
+    if result.returncode != 0:
+        print(f"Error: 'sacct' command failed for job ID {jobid}")
+        return
+
     lines = result.stdout.decode("utf-8").strip().split("\n")
+    if not lines:
+        print(f"Error: No data returned for job ID {jobid}")
+        return
 
     # Skip header
     for line in lines[1:]:

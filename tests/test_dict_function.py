@@ -1,7 +1,7 @@
 import unittest
 import os
 import pandas as pd
-from dict_function import read_node_data
+from bin.utils import read_node_data
 
 class TestNodeDataParsing(unittest.TestCase):
     def setUp(self):
