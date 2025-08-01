@@ -19,8 +19,7 @@ from utils import get_sacct_tokens
 from utils import round_to_nearest_half_hour
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
-SCOPE2_AND_3_EMISSIONS_DIR = "/users/k22053799/HPC_Emissions_project/emissions-tools/scripts/cleaned_nodes_filled_embodied.csv"
-
+SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_embodied.csv"
 
 # Define the estimated average carbon value
 node_carbon = read_node_data(SCOPE2_AND_3_EMISSIONS_DIR)
