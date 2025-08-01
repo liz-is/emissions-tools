@@ -8,15 +8,12 @@ EPCC, 2024
 
 import argparse
 import json
-import subprocess
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-import pandas as pd
-from utils import read_node_data
-from utils import get_sacct_tokens 
-from utils import round_to_nearest_half_hour
+
+from utils import get_sacct_tokens, read_node_data, round_to_nearest_half_hour
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
 SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_embodied.csv"

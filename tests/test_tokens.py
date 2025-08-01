@@ -1,5 +1,6 @@
 from bin.utils import get_sacct_tokens
 
+
 def test_sacct_tokens(jobid):
     tokens = get_sacct_tokens(jobid)
     print("TOKENS:", tokens)

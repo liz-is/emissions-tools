@@ -1,6 +1,7 @@
-import pandas as pd
 import subprocess
 from datetime import datetime, timedelta
+
+import pandas as pd
 
 ESTIMATE_VALUE = 10343.0727848101
 
