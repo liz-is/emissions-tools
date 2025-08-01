@@ -21,16 +21,16 @@ SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_e
 # Define the estimated average carbon value
 node_carbon = read_node_data(SCOPE2_AND_3_EMISSIONS_DIR)
 
-
-
-# Base definitions on Scope 3 emissions
-SCOPE3_PER_NODEH = 23.0   # gCO2e/nodeh
+# Base definitions for Scope 3 emissions
+NODE_LIFETIME = 6              # years
 
 # Base definitions on Scope 2 emissions
 MEAN_NODE_POWER_DRAW = 0.41    # kW
 MIN_NODE_POWER_DRAW = 0.2      # kW
 OTHER_FRACTION = 0.15          # Fraction to add for non-compute node energy use
 OVERHEAD_FRACTION = 0.10       # Fraction to add for plant overheads
+MEAN_CORE_POWER_DRAW = MEAN_NODE_POWER_DRAW / 128    # based on 128 cores per node for ARCHER2
+MIN_CORE_POWER_DRAW = MIN_NODE_POWER_DRAW / 128      # based on 128 cores per node for ARCHER2
 
 # Definitions for querying web API
 LOCATION = "EC1A"
@@ -74,17 +74,17 @@ except (RuntimeError, ValueError) as e:
     print(f"Error: {e}")
     sys.exit(1)
 
-job_start_s = tokens[2]         
-job_nodes = int(tokens[3])      
-job_runtime = int(tokens[4])    
-job_node_list = tokens[5]       
+job_start_s = tokens[2]
+job_nodes = int(tokens[3])
+job_runtime = int(tokens[4])
+job_node_list = tokens[5]
 job_cpu_cores = int(tokens[6])
 try:
     job_energy = int(tokens[7])
 except ValueError:
     job_energy = 0
 
-job_nodeh = (job_nodes * job_runtime) / 3600.0
+job_coreh = (job_cpu_cores * job_runtime) / 3600.0
 compute_kwh = 0.0
 
 # Parse node name
@@ -100,22 +100,18 @@ if not node_info:
 
 node_cpu_cores = node_info["cpu_cores"]
 node_embodied = node_info["embodied"]
+scope3_per_coreh = node_embodied / node_cpu_cores / (24 * 365 * NODE_LIFETIME)
+scope3_per_coreh = scope3_per_coreh / 1000 # convert to gCO2e
 
 #can move somewhere
 
 print(f"Node name: {first_node_name}")
 print(f"Embodied carbon for this node: {node_embodied} kgCO2e")
 
-
-measured_mean_power_draw = job_energy / (job_nodes * job_runtime)
-# If we have a valid energy from Slurm, use it; otherwise, use estimate
-is_estimated = False
-if measured_mean_power_draw > MIN_NODE_POWER_DRAW:
-    compute_kwh = job_energy / 3600000
-    is_estimated = False
-else:
-    compute_kwh = job_nodeh * MEAN_NODE_POWER_DRAW
-    is_estimated = True
+# calculate compute kWh based on estimated mean CPU power draw of ARCHER2
+# later we can replace this with per-node average power draw figures
+compute_kwh = job_coreh * MEAN_CORE_POWER_DRAW
+is_estimated = True
 
 # Compute other contributions to energy use
 other_kwh = compute_kwh * OTHER_FRACTION
@@ -176,7 +172,7 @@ else:
 scope2_emissions = (estimated_kwh * ci_value) / 1000.0
 
 # Scope 3
-scope3_emissions = (job_nodeh * SCOPE3_PER_NODEH) / 1000.0
+scope3_emissions = (job_coreh * scope3_per_coreh) / 1000.0
 
 # Total
 total_emissions = scope3_emissions
@@ -188,13 +184,13 @@ if args.jsonOutput:
    # construct dictionary for JSON output
    job_d = {}
    job_d["JobID"] = jobid
-   job_d["Start"] = job_start 
+   job_d["Start"] = job_start
    job_d["Nodes"] = job_nodes
    job_d["Runtime"] = job_runtime
 
    res_d = {}
-   res_d["ResourceUsed"] = f"{job_nodeh:.3f}"
-   res_d["ResourceUnit"] = "nodeh"
+   res_d["ResourceUsed"] = f"{job_coreh:.3f}"
+   res_d["ResourceUnit"] = "coreh"
    job_d["Resource"] = res_d
 
    energy_d = {}
@@ -232,7 +228,7 @@ else:
    print("#")
    print("# Notes:")
    print("#  * Estimates provided for interest only")
-   print("#  * Scope 3 emissions estimates based on 6 years service length.")
+   print(f"#  * Scope 3 emissions estimates based on {NODE_LIFETIME} years service length.")
    print("#  * Scope 3 emissions estimates include compute nodes, storage,")
    print("#    interconnect switches")
    print("#")
@@ -242,8 +238,9 @@ else:
    print(f"                       Job ID: {jobid:>20s}")
    print(f"                        Start: {job_start_s:>20s}")
    print(f"                        Nodes: {job_nodes:20d}")
+   print(f"                    CPU cores: {job_cpu_cores:20d}")
    print(f"                      Runtime: {job_runtime:20d} s")
-   print(f"                           CU: {job_nodeh:20.3f}")
+   print(f"                           CU: {job_coreh:20.3f}")
    print(f"      Compute node energy use: {compute_kwh:20.3f} kWh{marker_s}")
    print(f"    Other hardware energy use: {other_kwh:20.3f} kWh (estimated)")
    print(f"          Overhead energy use: {overhead_kwh:20.3f} kWh (estimated)")
@@ -252,13 +249,13 @@ else:
    print("\n  Emissions estimates:")
    print(f"      Scope 2: {0.0:10.3f} kgCO2e (CREATE HPC is on 100% certified")
    print("                renewable energy contract so scope 2 emissions are zero)")
-   print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
+   print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({scope3_per_coreh:.1f} gCO2e/CU)")
    print(f"        Total: {total_emissions:10.3f} kgCO2e\n")
    print("      Indicative emissions estimates for UK national grid energy mix")
    print("      in London at start of job if CREATE HPC was not using")
    print("      renewable energy")
    print(f"          Scope 2: {scope2_emissions:10.3f} kgCO2e ({estimated_kwh:.3f} kWh{marker_s}, {ci_value:.1f} gCO2e/kWh)")
-   print(f"          Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
+   print(f"          Scope 3: {scope3_emissions:10.3f} kgCO2e ({scope3_per_coreh:.1f} gCO2e/CU)")
    print(f"            Total: {total_emissions_ukgrid:10.3f} kgCO2e")
    print("\n      Scope 2 carbon intensity values from carbonintensity.org.uk")
    if is_estimated:
