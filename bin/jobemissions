@@ -268,7 +268,7 @@ else:
    print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
    print(f"        Total: {total_emissions:10.3f} kgCO2e\n")
    print("      Indicative emissions estimates for UK national grid energy mix")
-   print("      in S. Scotland at start of job if CREATE HPC was not using")
+   print("      in London at start of job if CREATE HPC was not using")
    print("      renewable energy")
    print(f"          Scope 2: {scope2_emissions:10.3f} kgCO2e ({estimated_kwh:.3f} kWh{marker_s}, {ci_value:.1f} gCO2e/kWh)")
    print(f"          Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
