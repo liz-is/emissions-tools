@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calculate estimated emissions from a single job on ARCHER2.
+"""Calculate estimated emissions from a single job on CREATE HPC.
 
 The grid carbon density is fetched from the carbonintensity.org.uk website.
 
@@ -8,24 +8,20 @@ EPCC, 2024
 
 import argparse
 import json
-import subprocess
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 
-
-def round_to_nearest_half_hour(t: datetime) -> datetime:
-   """Round datetime object to nearest half-hour."""
-   nearest_minute = 30
-   delta = timedelta(minutes=(nearest_minute - t.minute % nearest_minute) % nearest_minute)
-   if t.minute > nearest_minute:
-      t += delta
-   else:
-      t -= delta
-   return t.replace(second=0, microsecond=0)
+from utils import get_sacct_tokens, read_node_data, round_to_nearest_half_hour
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
+SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_embodied.csv"
+
+# Define the estimated average carbon value
+node_carbon = read_node_data(SCOPE2_AND_3_EMISSIONS_DIR)
+
+
 
 # Base definitions on Scope 3 emissions
 SCOPE3_PER_NODEH = 23.0   # gCO2e/nodeh
@@ -37,7 +33,7 @@ OTHER_FRACTION = 0.15          # Fraction to add for non-compute node energy use
 OVERHEAD_FRACTION = 0.10       # Fraction to add for plant overheads
 
 # Definitions for querying web API
-LOCATION = "EH26"
+LOCATION = "EC1A"
 DATEFORMAT_IN = "%Y-%m-%dT%H:%M:%S"
 DATEFORMAT_OUT = "%Y-%m-%dT%H:%MZ"
 TIME_DELTA = timedelta(minutes=30)
@@ -59,31 +55,57 @@ food_d = {
 
 parser = argparse.ArgumentParser(
         description="Compute estimated emissions from a Slurm job. Includes Scope 2 and Scope 3 emissions. If the Slurm job contains energy consumption then this is used to compute Scope 2 emissions, if energy data is not present in Slurm, the mean power draw of compute nodes is used to estimate emissions.",
-        epilog="The carbon density for Scope 2 emissions is taken as the value for the location of ARCHER2 at the start of the job from carbonintensity.org.uk. Scope 3 emissions are computed based on the amount of resource used by the job (e.g. kgCO2e/nodeh) and are calculated as the total Scope 3 emissions from the service divided byt the total number of nodeh available over the projected lifetime of the service.\n",
+        epilog="The carbon density for Scope 2 emissions is taken as the value for the location of CREATE HPC at the start of the job from carbonintensity.org.uk. Scope 3 emissions are computed based on the amount of resource used by the job (e.g. kgCO2e/nodeh) and are calculated as the total Scope 3 emissions from the service divided byt the total number of nodeh available over the projected lifetime of the service.\n",
         )
 parser.add_argument("jobid", type=str, nargs=1, help="JobID of the Slurm job to compute emissions for.")
 parser.add_argument("--json", dest="jsonOutput", action="store_true", default=False, help="Output in JSON format rather than human-readable text.")
 parser.add_argument("--comparison", type=str, dest="compare", action="store", default="none", help='Specify emissions comparisons to print as a comma-separated list. Valid vales "food", "other", "none". "none" suppresses reporting of emissions comparisons. Default is "none".')
-parser.add_argument("--cisource", type=str, dest="cisource", action="store", default="cache", help='Specify how to source the carbon intensity value for indicative Scope 2 emissions. "cache" gets values from cache on ARCHER2 to avoid flooding carbonintensity.org.uk with requests and allow use on compute nodes. "ciwebsite" fetches values direct from carbonintensity.org.uk website. Default is "cache".')
+parser.add_argument("--cisource", type=str, dest="cisource", action="store", default="cache", help='Specify how to source the carbon intensity value for indicative Scope 2 emissions. "cache" gets values from cache on CREATE HPC to avoid flooding carbonintensity.org.uk with requests and allow use on compute nodes. "ciwebsite" fetches values direct from carbonintensity.org.uk website. Default is "cache".')
 args = parser.parse_args()
 
 jobid = args.jobid[0]
 
 # Get job details
-job_energy = 0
-sacct_cmd = subprocess.run(["sacct", "-n", "-X", "--format=Start,NNode,ElapsedRaw,Account%50,ConsumedEnergyRaw", f"--job={jobid}"], stdout=subprocess.PIPE, check=False)
-job_details = sacct_cmd.stdout.decode("utf-8").strip()
-tokens = job_details.split()
-job_start_s = tokens[0]
-job_nodes = int(tokens[1])
-job_runtime = int(tokens[2])
-job_account = tokens[3]
+
 try:
-   job_energy = int(tokens[4])
+    tokens = get_sacct_tokens(jobid)
+    print("Tokens:", tokens)
+except (RuntimeError, ValueError) as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+
+job_start_s = tokens[2]         
+job_nodes = int(tokens[3])      
+job_runtime = int(tokens[4])    
+job_node_list = tokens[5]       
+job_cpu_cores = int(tokens[6])
+try:
+    job_energy = int(tokens[7])
 except ValueError:
-   job_energy = 0
+    job_energy = 0
+
 job_nodeh = (job_nodes * job_runtime) / 3600.0
 compute_kwh = 0.0
+
+# Parse node name
+job_node_list = tokens[5]  # This is the NodeList from Slurm
+first_node_name = job_node_list.split(",")[0].strip()
+
+# Lookup in dictionary
+node_info = node_carbon.get(first_node_name)
+
+if not node_info:
+    print(f"Error: node '{first_node_name}' not found in carbon dictionary.")
+    sys.exit(1)
+
+node_cpu_cores = node_info["cpu_cores"]
+node_embodied = node_info["embodied"]
+
+#can move somewhere
+
+print(f"Node name: {first_node_name}")
+print(f"Embodied carbon for this node: {node_embodied} kgCO2e")
+
 
 measured_mean_power_draw = job_energy / (job_nodes * job_runtime)
 # If we have a valid energy from Slurm, use it; otherwise, use estimate
@@ -124,7 +146,7 @@ if args.cisource == "ciwebsite":
    ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
 else:
    # Extract CI value at the job start time
-   #   The CI value is taken from cached values held on ARCHER2 to avoid
+   #   The CI value is taken from cached values held on CREATE HPC to avoid
    #   flooding the carbonintensity.org.uk website with requests. The cached
    #   values are captured every night in a file per day with half-hour
    #   interval data in a CSV file.
@@ -134,7 +156,7 @@ else:
    s_month = job_start.month
    s_day = job_start.day
 
-   ci_csv = f"{CI_DATA_DIR}/{s_year}/{s_month}/{s_year}{s_month}{s_day}_ci.csv"
+   ci_csv = f"{CI_DATA_DIR}/{s_year}/{s_month:02d}/{s_year}{s_month:02d}{s_day:02d}_ci.csv"
    try:
       csv_file = open(ci_csv)
       # Round to nearest half hour to match interval for data in log files
@@ -166,8 +188,7 @@ if args.jsonOutput:
    # construct dictionary for JSON output
    job_d = {}
    job_d["JobID"] = jobid
-   job_d["Start"] = job_start_s
-   job_d["Budget"] = job_account
+   job_d["Start"] = job_start 
    job_d["Nodes"] = job_nodes
    job_d["Runtime"] = job_runtime
 
@@ -207,7 +228,7 @@ else:
    if is_estimated:
       marker_s = "(*)"
    print("\n#####################################################################")
-   print("# ARCHER2 job emissions estimate")
+   print("# CREATE HPC job emissions estimate")
    print("#")
    print("# Notes:")
    print("#  * Estimates provided for interest only")
@@ -220,7 +241,6 @@ else:
    print("\n  Job details:")
    print(f"                       Job ID: {jobid:>20s}")
    print(f"                        Start: {job_start_s:>20s}")
-   print(f"                       Budget: {job_account:>20s}")
    print(f"                        Nodes: {job_nodes:20d}")
    print(f"                      Runtime: {job_runtime:20d} s")
    print(f"                           CU: {job_nodeh:20.3f}")
@@ -230,12 +250,12 @@ else:
    print(f"             Total energy use: {estimated_kwh:20.3f} kWh (estimated)")
 
    print("\n  Emissions estimates:")
-   print(f"      Scope 2: {0.0:10.3f} kgCO2e (ARCHER2 is on 100% certified")
+   print(f"      Scope 2: {0.0:10.3f} kgCO2e (CREATE HPC is on 100% certified")
    print("                renewable energy contract so scope 2 emissions are zero)")
    print(f"      Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
    print(f"        Total: {total_emissions:10.3f} kgCO2e\n")
    print("      Indicative emissions estimates for UK national grid energy mix")
-   print("      in S. Scotland at start of job if ARCHER2 was not using")
+   print("      in London at start of job if CREATE HPC was not using")
    print("      renewable energy")
    print(f"          Scope 2: {scope2_emissions:10.3f} kgCO2e ({estimated_kwh:.3f} kWh{marker_s}, {ci_value:.1f} gCO2e/kWh)")
    print(f"          Scope 3: {scope3_emissions:10.3f} kgCO2e ({SCOPE3_PER_NODEH:.1f} gCO2e/CU)")
@@ -250,8 +270,8 @@ else:
       print("\n   Emissions from job approximately equivalent to following food consumption:")
       print(f"        |{'Food':>10s} |{'Emissions (kgCO2e/100g)':>25s} |{'Equivalent to (g)':>18s} |")
       print("        |-----------|--------------------------|-------------------|")
-      for food in food_d.items():
-          equiv = 100 * total_emissions / food_d[food]
+      for food, emission in food_d.items():
+          equiv = 100 * total_emissions / emission
           print(f"        |{food:>10s} |{food_d[food]:25.2f} |{equiv:18.2f} |")
 
    if "other" in args.compare:
