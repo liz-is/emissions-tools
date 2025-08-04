@@ -47,29 +47,3 @@ for node in node_info.keys():
 
                 subprocess.run(["sbatch", temp_file.name])
                 print(f"Submitted {job_name}")
-
-    # zero cores = sleep
-    for t in burn_time_min:
-        n = 0
-        job_name = f"{node}_{n}c_{t}m"
-
-        time_s = 60*t
-        cmd = f"sleep {time_s}"
-
-        sbatch_options = [
-            f"--nodelist={node}",
-            f"--cpus-per-task={node_cpus}",
-            f"--job-name={job_name}",
-            f"--output={job_name}_%j.out",
-            f"--time=00:{t}:10"
-        ]
-
-        all_sbatch_options = "\n#SBATCH " + "\n#SBATCH ".join(fixed_sbatch_options + sbatch_options)
-
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
-            temp_file.write("#!/bin/bash\n\n" + all_sbatch_options + "\n\n" + cmd + "\n")
-            temp_file.flush()  # Ensure data is written
-
-            subprocess.run(["sbatch", temp_file.name])
-            print(f"Submitted {job_name}")
-
