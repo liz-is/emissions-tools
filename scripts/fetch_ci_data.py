@@ -11,7 +11,7 @@ from pathlib import Path
 
 def get_ci_for_interval(
     start_time, delta, postcode, dateformat="%Y-%m-%dT%H:%MZ"
-) -> float:
+) -> tuple[str, float]:
     """
     Retrieves carbon intensity data from carbonintensity.org.uk for a
     time period defined by `start_time` and `delta`.
@@ -34,7 +34,7 @@ def get_ci_for_interval(
     ci_d = json.loads(ci_json)
     ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
 
-    return ci_value
+    return start_time_url, ci_value
 
 
 # Definitions for querying web API
@@ -61,7 +61,7 @@ ci_data_dir = args.dir
 interval_starts = [
     date_start + n * TIME_DELTA for n in range(0, 48)
 ]  # number of 30 min intervals in a day
-ci_values = [
+interval_ci = [
     get_ci_for_interval(start_time, TIME_DELTA, LOCATION)
     for start_time in interval_starts
 ]
@@ -74,8 +74,7 @@ ci_dir = f"{ci_data_dir}/{s_year}/{s_month:02d}/"
 ci_csv = os.path.join(ci_dir, f"{s_year}{s_month:02d}{s_day:02d}_ci.csv")
 Path(ci_dir).mkdir(parents=True, exist_ok=True)
 
-rows = zip(interval_starts, ci_values)
 with open(ci_csv, "w") as csv_file:
     writer = csv.writer(csv_file)
-    for row in rows:
+    for row in interval_ci:
         writer.writerow(row)
