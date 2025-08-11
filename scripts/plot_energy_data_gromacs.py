@@ -14,12 +14,11 @@ args = parser.parse_args()
 
 energy_data = pd.read_csv(args.file)
 
-energy_data[["node", "cores", "time"]] = energy_data["JobName"].str.extract(
-    r"(.*)_(\d{1,2})c_(\d{1,2})m"
+energy_data[["node", "cores"]] = energy_data["JobName"].str.extract(
+    r"(.*)_(\d{1,2})c"
 )
 
 energy_data["cores"] = energy_data["cores"].astype(int)
-energy_data["time"] = energy_data["time"].astype(int)
 energy_data["joules_per_s"] = energy_data["ConsumedEnergyRaw"] / (energy_data["ElapsedRaw"])
 
 # plot
