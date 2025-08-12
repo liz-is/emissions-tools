@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from utils import get_sacct_tokens, read_node_data, round_to_nearest_half_hour
 
 CI_DATA_DIR = "/work/z19/shared/carbonintensity"
+# Path to CSV with embodied carbon values for nodes
+
 SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_embodied.csv"
 
 # Define the estimated average carbon value
@@ -52,6 +54,7 @@ food_d = {
         "Chickpeas": 0.04, # kgCO2e/100g https://apps.carboncloud.com/climatehub/product-reports/id/87516661589
         }
 
+# CLI argument parsing
 
 parser = argparse.ArgumentParser(
         description="Compute estimated emissions from a Slurm job. Includes Scope 2 and Scope 3 emissions. If the Slurm job contains energy consumption then this is used to compute Scope 2 emissions, if energy data is not present in Slurm, the mean power draw of compute nodes is used to estimate emissions.",
@@ -73,6 +76,8 @@ try:
 except (RuntimeError, ValueError) as e:
     print(f"Error: {e}")
     sys.exit(1)
+    
+# Slurm token unpacking
 
 job_start_s = tokens[2]         
 job_nodes = int(tokens[3])      
@@ -83,6 +88,8 @@ try:
     job_energy = int(tokens[7])
 except ValueError:
     job_energy = 0
+    
+# Convert runtime into node-hours
 
 job_nodeh = (job_nodes * job_runtime) / 3600.0
 compute_kwh = 0.0
@@ -101,11 +108,10 @@ if not node_info:
 node_cpu_cores = node_info["cpu_cores"]
 node_embodied = node_info["embodied"]
 
-#can move somewhere
-
 print(f"Node name: {first_node_name}")
 print(f"Embodied carbon for this node: {node_embodied} kgCO2e")
 
+# Calculate mean measured power draw
 
 measured_mean_power_draw = job_energy / (job_nodes * job_runtime)
 # If we have a valid energy from Slurm, use it; otherwise, use estimate
@@ -171,6 +177,8 @@ else:
    except Exception as err:
        print(str(err))
        sys.exit(1)
+       
+# Emissions calculations 
 
 # Scope 2
 scope2_emissions = (estimated_kwh * ci_value) / 1000.0
@@ -223,7 +231,7 @@ if args.jsonOutput:
    json_s = json.dumps(job_d, indent=4, separators=(",", ": "))
    print(json_s)
 else:
-   # To mark if energy use is estimated
+   # Human-readable formatted output
    marker_s = ""
    if is_estimated:
       marker_s = "(*)"
@@ -265,6 +273,7 @@ else:
       print("\n       (*) Energy use missing from Slurm data, estimated using mean")
       print("             power draw of compute node")
 
+   # Food comparisons
    if "food" in args.compare:
       steaks = 100 * (total_emissions/STEAK)
       print("\n   Emissions from job approximately equivalent to following food consumption:")
@@ -274,6 +283,7 @@ else:
           equiv = 100 * total_emissions / emission
           print(f"        |{food:>10s} |{food_d[food]:25.2f} |{equiv:18.2f} |")
 
+   # Other lifestyle comparisons
    if "other" in args.compare:
       house = (UK_HOUSE * ci_value)/1000.0
       print("\n  Emissions from job approximately equivalent to:")
