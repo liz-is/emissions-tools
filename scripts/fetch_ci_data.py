@@ -9,13 +9,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 
-def get_ci_for_interval(
-    start_time, delta, postcode, dateformat="%Y-%m-%dT%H:%MZ"
-) -> tuple[str, float]:
+def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
     """
-    Retrieves carbon intensity data from carbonintensity.org.uk for a
-    time period defined by `start_time` and `delta`.
+    Retrieves carbon intensity forecast data for a specified time interval and postcode.
+
+    Args:
+        start_time (datetime): The start time of the interval (UTC).
+        delta (timedelta): The duration of the interval.
+        postcode (str): The UK postcode to query carbon intensity for, e.g. EC1A. This must be only the outward postcode (the first half of the full postcode).
+
+    Returns:
+        tuple[str, float]: A tuple containing the formatted start time (as a string) and the carbon intensity forecast (in gCO2/kWh).
+
+    Raises:
+        SystemExit: If the HTTP request to the API fails.
     """
+    dateformat = "%Y-%m-%dT%H:%MZ"
     end_time = start_time + delta
     start_time_url = start_time.strftime(dateformat)
     end_time_url = end_time.strftime(dateformat)
