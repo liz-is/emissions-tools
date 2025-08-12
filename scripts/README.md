@@ -104,12 +104,3 @@ Sample CSV file for verifying `read_node_data`.
 - Energy at 100% and 0% utilization (kW)
 - Model manufacturer ID
 
----
-
-## Running the Tests
-
-**Install dependencies:**
-```bash
-pip install -r requirements.txt
-
-
