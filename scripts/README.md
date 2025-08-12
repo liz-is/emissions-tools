@@ -23,8 +23,8 @@ Contains tests for validating the functionality of the scripts and utility funct
 - **`data_cleaning.ipynb`** : Interactive Jupyter notebook for exploring and testing the data cleaning process. Reads raw node metadata and embodied emissions data, cleans the data, and outputs two CSV files:
 - **`cleaned_nodes_actual_embodied.csv`**: Raw embodied values (with NaNs preserved).
 - **`cleaned_nodes_filled_embodied.csv`**: Missing values replaced with the average embodied carbon.
-- **`fetch_ci_data.py`**: fetches carbon intensity api.
-- **`clean_node_data.py`**: cleans raw node data into an organized table.
+- **`fetch_ci_data.py`**: Fetches carbon intensity api.
+- **`clean_node_data.py`**: Cleans raw node data into an organized table.
 
 ---
 
@@ -105,5 +105,6 @@ Sample CSV file for verifying `read_node_data`.
 - Embodied carbon (kgCO2e)
 - Energy at 100% and 0% utilization (kW)
 - Model manufacturer ID
+
 
 
