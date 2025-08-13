@@ -47,11 +47,11 @@ def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
 
 
 # Definitions for querying web API
-LOCATION = "EC1A"
+LOCATION = "EC1A" # representing 'London' region
 TIME_DELTA = timedelta(minutes=30)
 
 parser = argparse.ArgumentParser(
-    description="Retrieve carbon intensity values (gCO2/kWh), over half-hour intervals, for the locate of CREATE HPC on a given day.",
+    description="Retrieve carbon intensity values (gCO2/kWh), over half-hour intervals, for the location of CREATE HPC on a given day.",
     epilog="Carbon intensity data is retrieved from carbonintensity.org.uk.\n",
 )
 parser.add_argument(
