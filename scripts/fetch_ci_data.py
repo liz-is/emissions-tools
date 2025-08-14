@@ -6,7 +6,6 @@ import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-from pathlib import Path
 
 
 def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
@@ -81,7 +80,7 @@ s_day = date_start.day
 
 ci_dir = f"{ci_data_dir}/{s_year}/{s_month:02d}/"
 ci_csv = os.path.join(ci_dir, f"{s_year}{s_month:02d}{s_day:02d}_ci.csv")
-Path(ci_dir).mkdir(parents=True, exist_ok=True)
+os.makedirs(ci_dir, exist_ok=True)
 
 with open(ci_csv, "w") as csv_file:
     writer = csv.writer(csv_file)
