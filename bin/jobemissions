@@ -166,14 +166,17 @@ else:
       #   search for it
       job_start_log = rounded_time.strftime(DATEFORMAT_OUT)
       for line in csv_file:
-          if job_start_log in line:
-              tokens = line.split(",")
-              ci_value = float(tokens[1])
+         if job_start_log in line:
+            tokens = line.split(",")
+            try:
+               ci_value = float(tokens[1])
+            except TypeError:
+               ci_value = 125 # average value for 2024, from NESO
    except Exception as err:
        print(str(err))
        sys.exit(1)
-       
-# Emissions calculations 
+
+# Emissions calculations
 
 # Scope 2
 scope2_emissions = (estimated_kwh * ci_value) / 1000.0
