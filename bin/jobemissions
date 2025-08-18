@@ -171,6 +171,7 @@ else:
             try:
                ci_value = float(tokens[1])
             except TypeError:
+               print(f"No carbon intensity data available for {rounded_time}, using 2024 average value")
                ci_value = 125 # average value for 2024, from NESO
    except Exception as err:
        print(str(err))
