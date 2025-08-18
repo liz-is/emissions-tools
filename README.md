@@ -9,6 +9,7 @@ These tools are based on those developed for the [ARCHER2 HPC](https://github.co
 | Tool | Description |
 |---|---|
 | `bin/jobemissions` | Tool to calculate estimated Scope 2 and Scope 3 emissions for specified job |
+| `scripts/fetch_ci_data.py` | Tool to retrieve carbon intensity data for a specific date and store it to a file. |
 
 ## Emission estimates methodologies
 
