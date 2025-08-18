@@ -1,15 +1,15 @@
 import argparse
 import csv
 import json
+import math
 import os
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-from typing import Optional
 
 
-def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, Optional[float]]:
+def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
     """
     Retrieves carbon intensity forecast data for a specified time interval and postcode.
 
@@ -45,7 +45,7 @@ def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, Optional[floa
         ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
     except IndexError:
         print(f"No data available for {start_time}!")
-        ci_value = None
+        ci_value = math.nan
 
     return start_time_url, ci_value
 

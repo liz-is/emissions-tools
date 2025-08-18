@@ -8,6 +8,7 @@ EPCC, 2024
 
 import argparse
 import json
+import math
 import sys
 import urllib.error
 import urllib.request
@@ -168,9 +169,8 @@ else:
       for line in csv_file:
          if job_start_log in line:
             tokens = line.split(",")
-            try:
-               ci_value = float(tokens[1])
-            except TypeError:
+            ci_value = float(tokens[1])
+            if math.isnan(ci_value):
                print(f"No carbon intensity data available for {rounded_time}, using 2024 average value")
                ci_value = 125 # average value for 2024, from NESO
    except Exception as err:
