@@ -2,6 +2,8 @@
 
 Repository to hold scripts and tools for emissions estimates on CREATE HPC.
 
+These tools are based on those developed for the [ARCHER2 HPC](https://github.com/ARCHER2-HPC/emissions-tools/blob/main/bin/jobemissions), and also make use of data gathered for ARCHER2.
+
 ## Tools
 
 | Tool | Description |
