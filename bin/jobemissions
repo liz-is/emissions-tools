@@ -31,7 +31,7 @@ NODE_LIFETIME = 6              # years
 MEAN_NODE_POWER_DRAW = 0.41    # kW
 MIN_NODE_POWER_DRAW = 0.2      # kW
 OTHER_FRACTION = 0.15          # Fraction to add for non-compute node energy use
-OVERHEAD_FRACTION = 0.10       # Fraction to add for plant overheads
+OVERHEAD_FRACTION = 0.35       # Fraction to add for data centre overheads
 MEAN_CORE_POWER_DRAW = MEAN_NODE_POWER_DRAW / 128    # based on 128 cores per node for ARCHER2
 MIN_CORE_POWER_DRAW = MIN_NODE_POWER_DRAW / 128      # based on 128 cores per node for ARCHER2
 
