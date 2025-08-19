@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import math
 import os
 import sys
 import urllib.error
@@ -29,7 +30,7 @@ def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
     end_time_url = end_time.strftime(dateformat)
 
     # Query carbonintensity to get the JSON information
-    ci_url = f"https://api.carbonintensity.org.uk/regional/intensity/{start_time_url}/{end_time_url}/postcode/{postcode}"
+    ci_url: str = f"https://api.carbonintensity.org.uk/regional/intensity/{start_time_url}/{end_time_url}/postcode/{postcode}"
     ci_response = None
     try:
         ci_response = urllib.request.urlopen(ci_url)
@@ -40,7 +41,11 @@ def get_ci_for_interval(start_time, delta, postcode) -> tuple[str, float]:
     # Parse the JSON retrieved from the website
     ci_json = ci_response.read()
     ci_d = json.loads(ci_json)
-    ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
+    try:
+        ci_value = ci_d["data"]["data"][0]["intensity"]["forecast"]
+    except IndexError:
+        print(f"No data available for {start_time}!")
+        ci_value = math.nan
 
     return start_time_url, ci_value
 
