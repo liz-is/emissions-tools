@@ -13,6 +13,10 @@ These tools are based on those developed for the [ARCHER2 HPC](https://github.co
 
 ## Emission estimates methodologies
 
+Note that we currently do not include contributions from GPUs in either the Scope 2 or Scope 3 emissions.
+This is due to a lack of data.
+Therefore, these tools are currently only suitable for use with jobs that do not use GPUs.
+
 ### Scope 3 emissions
 
 Scope 3 emissions from the CREATE HPC hardware have been estimated based on the compute nodes, which are expected to
@@ -79,6 +83,7 @@ Contains tests for validating the functionality of the scripts and utility funct
 ### `read_node_data(csv_path)`
 
 Reads a CSV file and returns a dictionary keyed by node name, with each value containing:
+
 - **`cpu_cores`**: Number of CPU cores in the node.
 - **`embodied`**: Embodied carbon of the node (kgCO2e).
 - **`embodied_estimate`**: Boolean indicating if the embodied carbon matches a known estimate.
