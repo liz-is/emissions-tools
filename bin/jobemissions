@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from utils import get_sacct_tokens, read_node_data, round_to_nearest_half_hour
 
-CI_DATA_DIR = "/work/z19/shared/carbonintensity"
+CI_DATA_DIR = "/scratch/prj/emissions/ci_data"
 # Path to CSV with embodied carbon values for nodes
 
 SCOPE2_AND_3_EMISSIONS_DIR = "/scratch/prj/emissions/data/cleaned_nodes_filled_embodied.csv"
